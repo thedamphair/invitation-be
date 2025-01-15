@@ -1,0 +1,7 @@
+GuestsList:
+  handler: src/guests/handler.retrieveGuestsList
+  events:
+    - http:
+        method: get
+        path: /guests
+        cors: ${self:custom.lambda.corsSettings}

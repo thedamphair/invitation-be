@@ -1,0 +1,107 @@
+service: invitation-be
+frameworkVersion: '3'
+
+app: invitation-be-${opt:stage, 'dev'}
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+    packagerOptions:
+      noFrozenLockfile: true
+  
+  prune:
+    automatic: true
+    number: 0
+
+  lambda:
+    authorizers:
+      mainAuthorizer:
+        name: mainAuthorizer
+        resultTtlInSeconds: 0
+        identitySource: method.request.header.Authorization
+        type: request
+    corsSettings:
+      headers:
+        - Content-Type
+        - X-Amz-Date
+        - Authorization
+        - X-Api-Key
+        - X-Amz-Security-Token
+        - X-Amzn-Trace-Id
+        - X-Amz-User-Agent
+      allowCredentials: true
+
+plugins:
+  - serverless-webpack
+  - serverless-prune-plugin
+  - serverless-offline
+
+# build:
+#   esbuild: false
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: 'us-east-1'
+  stackName: invitation-be-infra
+  logRetentionInDays: 7
+  endpointType: regional
+  versionFunctions: false
+  stage: dev
+  apiGateway:
+    description: invitation-be-api
+  memorySize: 3000
+  timeout: 180
+  environment:
+    COMPONENTS_BUCKET: service-components-bucket
+  iam:
+    role:
+      statements:
+      - Effect: Allow
+        Action:
+          - ssm:GetParameter
+        Resource: '*'
+      - Effect: Allow
+        Action:
+          - s3:DeleteObject
+          - s3:GetBucketLocation
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:PutObject
+        Resource:
+          - arn:aws:s3:::service-components-bucket
+          - arn:aws:s3:::service-components-bucket/*
+
+resources:
+  Resources:
+    componentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: service-components-bucket
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+              MaxAge: 3000
+    componentsBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref componentsBucket
+        PolicyDocument:
+          Statement:
+            - Sid: "DenyReadAndWriteForNotSSL"
+              Effect: "Deny"
+              Principal: "*"
+              Action: "s3:*"
+              Resource: arn:aws:s3:::service-components-bucket
+              Condition:
+                Bool:
+                  aws:SecureTransport: "false"
+    
+functions:
+  - ${file(./src/serverless.yml)}
